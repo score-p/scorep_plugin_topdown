@@ -7,7 +7,8 @@ add_subdirectory(lib/scorep_plugin_cxx_wrapper)
 add_library(topdown_plugin MODULE
     src/plugin.cpp
     include/plugin.hpp
-    ${PLUGIN_COMMON_SOURCES}
+    src/metric.cpp
+    include/metric.hpp
 )
 
 target_include_directories(topdown_plugin PUBLIC include)
