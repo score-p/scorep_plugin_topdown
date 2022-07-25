@@ -9,6 +9,8 @@ add_library(topdown_plugin MODULE
     include/plugin.hpp
     src/metric.cpp
     include/metric.hpp
+    src/perf_util.cpp
+    include/perf_util.hpp
 )
 
 target_include_directories(topdown_plugin PUBLIC include)
