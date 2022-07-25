@@ -1,0 +1,3 @@
+[submodule "lib/scorep_plugin_cxx_wrapper"]
+	path = lib/scorep_plugin_cxx_wrapper
+	url = https://github.com/score-p/scorep_plugin_cxx_wrapper
