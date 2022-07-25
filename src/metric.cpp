@@ -106,7 +106,7 @@ std::string tmam_metric_t::get_description() const {
 }
 
 scorep::plugin::metric_property tmam_metric_t::get_metric_property() const {
-    scorep::plugin::metric_property mp(get_name(), get_description(), "#");
+    scorep::plugin::metric_property mp(get_name(), get_description(), "fraction");
 
     mp.mode = SCOREP_METRIC_MODE_ABSOLUTE_LAST;
 
@@ -121,6 +121,8 @@ scorep::plugin::metric_property tmam_metric_t::get_metric_property() const {
     // override if category -> different unit
     if (tmam_metric_category::bottleneck == category) {
         mp.unit = "TMAM category";
+    } else if (tmam_metric_category::slots == category) {
+        mp.unit = "#";
     }
 
     return mp;
@@ -190,4 +192,8 @@ tmam_metric_category tmam_metric_t::get_bottleneck(const perf_tmam_data_t& tmam)
     }
 
     return top_category;
+}
+
+tmam_metric_t::tmam_metric_t (tmam_metric_category category) : category(category){
+    // nop
 }

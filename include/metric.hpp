@@ -47,7 +47,7 @@ public:
     /// category represented
     tmam_metric_category category;
 
-    tmam_metric_t (tmam_metric_category metric);
+    tmam_metric_t (tmam_metric_category category);
 
     /// list of all supported metrics
     static const std::vector<tmam_metric_t> all;
