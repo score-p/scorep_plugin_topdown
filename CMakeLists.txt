@@ -14,7 +14,7 @@ add_library(topdown_plugin MODULE
 )
 
 target_include_directories(topdown_plugin PUBLIC include)
-target_compile_features(topdown_plugin PUBLIC cxx_std_17)
+target_compile_features(topdown_plugin PUBLIC cxx_std_20)
 target_link_libraries(topdown_plugin PUBLIC Scorep::scorep-plugin-cxx)
 install(
     TARGETS topdown_plugin

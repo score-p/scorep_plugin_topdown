@@ -3,27 +3,38 @@
 #include <string>
 
 #include <scorep/SCOREP_MetricTypes.h>
+#pragma GCC diagnostic push 
+#pragma GCC diagnostic ignored "-Wvolatile"
 #include <scorep/plugin/plugin.hpp>
+#pragma GCC diagnostic pop
+
+#include <perf_util.hpp>
 
 /**
  * category of tmam result.
  * One scalar which can be extracted from a tmam result
+ *
+ * note that the numbers assigned here are used in exported traces,
+ * so **DO NOT REASSIGN NUMBERS*.
  */
-enum class tmam_metric_category {
-    slots,
-    bottleneck,
-    l1_retiring,
-    l1_bad_speculation,
-    l1_frontend_bound,
-    l1_backend_bound,
-    l2_light_ops,
-    l2_heavy_ops,
-    l2_branch_misprediction,
-    l2_machine_clear,
-    l2_fetch_latency,
-    l2_fetch_bandwidth,
-    l2_core_bound,
-    l2_memory_bound,
+enum class tmam_metric_category : uint64_t {
+    slots = 1ull << 40,
+    bottleneck = (1ull << 40) + 1,
+
+    // start count from 0 such that traces have "nice" numbers
+    // (note: these are in the order as mentioned in the optimization manual figure)
+    l1_retiring = 0,
+    l1_bad_speculation = 1,
+    l1_frontend_bound = 2,
+    l1_backend_bound = 3,
+    l2_light_ops = 4,
+    l2_heavy_ops = 5,
+    l2_branch_misprediction = 6,
+    l2_machine_clear = 7,
+    l2_fetch_latency = 8,
+    l2_fetch_bandwidth = 9,
+    l2_core_bound = 10,
+    l2_memory_bound = 11,
 };
 
 /**
@@ -43,7 +54,30 @@ public:
     
     /// get metric name for trace
     std::string get_name() const;
+
+    /// get metric description
+    std::string get_description() const;
+
+    /// retrieve scorep metric type
+    scorep::plugin::metric_property get_metric_property() const;
+
+    /**
+     * extract category from given tmam results
+     *
+     * @param tmam results to examine
+     * @return field from tmam given by this->category
+     */
+    uint64_t extract_tmam_field(const perf_tmam_data_t& tmam) const;
+
+    /**
+     * extract l2 category with the most alotted slots
+     * @param tmam results to examine
+     * @return l2 category with highest count
+     */
+    static tmam_metric_category get_bottleneck(const perf_tmam_data_t& tmam);
 };
+
+bool operator<(const tmam_metric_t& lhs, const tmam_metric_t& rhs);
 
 template <typename T, typename Policies>
 using tmam_metric_t_policy = scorep::plugin::policy::object_id<tmam_metric_t, T, Policies>;
