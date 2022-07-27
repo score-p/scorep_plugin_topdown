@@ -70,7 +70,7 @@ public:
     uint64_t extract_tmam_field(const perf_tmam_data_t& tmam) const;
 
     /**
-     * extract l2 category with the most alotted slots
+     * extract l2 category with the most alotted slots, retiring (light/heavy ops) are ignored!
      * @param tmam results to examine
      * @return l2 category with highest count
      */

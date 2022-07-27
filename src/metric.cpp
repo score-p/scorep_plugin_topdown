@@ -170,8 +170,8 @@ uint64_t tmam_metric_t::extract_tmam_field(const perf_tmam_data_t& tmam) const {
 
 tmam_metric_category tmam_metric_t::get_bottleneck(const perf_tmam_data_t& tmam) {
     const std::vector<tmam_metric_category> lvl2_categories = {
-        tmam_metric_category::l2_light_ops,
-        tmam_metric_category::l2_heavy_ops,
+        // ignore retiring, this is not a bottleneck!
+        // (to be fair it can be when not using vector instructions etc., but it is typically not)
         tmam_metric_category::l2_branch_misprediction,
         tmam_metric_category::l2_machine_clear,
         tmam_metric_category::l2_fetch_latency,
