@@ -5,6 +5,10 @@
 #include <stdexcept>
 #include <chrono>
 
+extern "C" {
+    #include <unistd.h>
+}
+
 #include <scorep/SCOREP_MetricTypes.h>
 #pragma GCC diagnostic push 
 #pragma GCC diagnostic ignored "-Wvolatile"
@@ -15,7 +19,6 @@
 #include <perf_util.hpp>
 
 class topdown_plugin :
-    // todo: object ID policy
     public scorep::plugin::base<topdown_plugin,
                                 scorep::plugin::policy::sync,
                                 scorep::plugin::policy::per_thread,
@@ -23,11 +26,11 @@ class topdown_plugin :
                                 tmam_metric_t_policy> {
 private:
     // thread id type -> corresponding to pid_t
-    using tid_t = std::uint64_t;
+    using tid_t = pid_t;
 
     /// retrieve id of current thread
     tid_t get_current_tid() const {
-        return 0;
+        return gettid();
     }
 
     /// handle to TMAM perf wrapper (per thread)
