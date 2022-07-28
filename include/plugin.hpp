@@ -4,6 +4,7 @@
 #include <memory>
 #include <stdexcept>
 #include <chrono>
+#include <string>
 
 extern "C" {
     #include <unistd.h>
@@ -37,7 +38,7 @@ private:
     std::map<tid_t, perf_tmam_handle> tmam_handle_by_thread;
 
     /// minimum time between two measurements
-    uint64_t delta_t_min_us = 10000;
+    uint64_t delta_t_min_us = 500;
 
     /// track when last measurement was taken
     std::map<tid_t, std::chrono::steady_clock::time_point> sample_current_timepoint_by_thread;
@@ -83,6 +84,12 @@ private:
     }
 
 public:
+    /// constructor
+    topdown_plugin() {
+        delta_t_min_us = std::stoull(scorep::environment_variable::get("INTERVAL_US",
+                                                                       std::to_string(delta_t_min_us)));
+    }
+
     void add_metric(const tmam_metric_t&) {
         // record given metric for *current thread*
         // note that there is no specific procedure for an individual metric,
