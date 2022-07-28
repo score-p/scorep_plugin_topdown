@@ -52,6 +52,23 @@ This plugin is configured via environment variables as follows:
 
 The full configuration used for test setups can be found below.
 
+## Building
+Use the usual CMake build process:
+
+```bash
+git clone https://github.com/score-p/scorep_plugin_topdown
+cd scorep_plugin_topdown
+# initialize submodules (!!)
+git submodule update --init --recursive
+
+# vanilla cmake build process:
+mkdir build && cd build
+cmake ..
+make -j $((2*$(nproc)))
+```
+
+The resulting `libtopdown_plugin.so` must be placed in the `LD_LIBRARY_PATH` to be found by Score-P.
+
 ## Example Setup
 ```bash
 # general scorep settings
