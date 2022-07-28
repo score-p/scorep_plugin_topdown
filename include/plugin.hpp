@@ -130,8 +130,9 @@ public:
             uint64_t value_raw = metric.extract_tmam_field(delta);
 
             if (tmam_metric_category::slots == metric.category ||
-                tmam_metric_category::bottleneck == metric.category) {
-                // slots & bottleneck are reported as-is
+                tmam_metric_category::l1_bottleneck == metric.category ||
+                tmam_metric_category::l2_bottleneck == metric.category) {
+                // slots & bottlenecks are reported as-is
                 p.write(value_raw);
             } else {
                 // all other metrics are reported as fractions [0,1]

@@ -19,7 +19,8 @@
  */
 enum class tmam_metric_category : uint64_t {
     slots = 1ull << 40,
-    bottleneck = (1ull << 40) + 1,
+    l1_bottleneck = (1ull << 40) + 1,
+    l2_bottleneck = (1ull << 40) + 2,
 
     // start count from 0 such that traces have "nice" numbers
     // (note: these are in the order as mentioned in the optimization manual figure)
@@ -74,7 +75,14 @@ public:
      * @param tmam results to examine
      * @return l2 category with highest count
      */
-    static tmam_metric_category get_bottleneck(const perf_tmam_data_t& tmam);
+    static tmam_metric_category get_l2_bottleneck(const perf_tmam_data_t& tmam);
+
+    /**
+     * extract l1 category with the most alotted slots, retiring are ignored!
+     * @param tmam results to examine
+     * @return l1 category with highest count
+     */
+    static tmam_metric_category get_l1_bottleneck(const perf_tmam_data_t& tmam);
 };
 
 bool operator<(const tmam_metric_t& lhs, const tmam_metric_t& rhs);

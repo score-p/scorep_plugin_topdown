@@ -6,7 +6,8 @@
 
 const std::vector<tmam_metric_t> tmam_metric_t::all = {
     tmam_metric_t(tmam_metric_category::slots),
-    tmam_metric_t(tmam_metric_category::bottleneck),
+    tmam_metric_t(tmam_metric_category::l1_bottleneck),
+    tmam_metric_t(tmam_metric_category::l2_bottleneck),
     tmam_metric_t(tmam_metric_category::l1_retiring),
     tmam_metric_t(tmam_metric_category::l1_bad_speculation),
     tmam_metric_t(tmam_metric_category::l1_frontend_bound),
@@ -24,7 +25,8 @@ const std::vector<tmam_metric_t> tmam_metric_t::all = {
 std::string tmam_metric_t::get_name() const {
     const std::map<tmam_metric_category, std::string> name_by_metric = {
         {tmam_metric_category::slots, "slots"},
-        {tmam_metric_category::bottleneck, "bottleneck"},
+        {tmam_metric_category::l1_bottleneck, "l1-bottleneck"},
+        {tmam_metric_category::l2_bottleneck, "l2-bottleneck"},
         {tmam_metric_category::l1_retiring, "l1-retiring"},
         {tmam_metric_category::l1_bad_speculation, "l1-bad-speculation"},
         {tmam_metric_category::l1_frontend_bound, "l1-frontend-bound"},
@@ -49,8 +51,12 @@ std::string tmam_metric_t::get_description() const {
             "number of uOP issue slots"
         },
         {
-            tmam_metric_category::bottleneck,
-            "level 2 category with the most alotted time"
+            tmam_metric_category::l1_bottleneck,
+            "level 1 category with the most alotted time (retiring ignored)"
+        },
+        {
+            tmam_metric_category::l2_bottleneck,
+            "level 2 category with the most alotted time (light/heavy ops ignored)"
         },
         {
             tmam_metric_category::l1_retiring,
@@ -111,7 +117,8 @@ scorep::plugin::metric_property tmam_metric_t::get_metric_property() const {
     mp.mode = SCOREP_METRIC_MODE_ABSOLUTE_LAST;
 
     // type: all are fractions (of 1), except slots (#) and bottleneck (category enum)
-    if (tmam_metric_category::bottleneck == category ||
+    if (tmam_metric_category::l1_bottleneck == category ||
+        tmam_metric_category::l2_bottleneck == category ||
         tmam_metric_category::slots == category) {
         mp.type = SCOREP_METRIC_VALUE_UINT64;
     } else {
@@ -119,7 +126,8 @@ scorep::plugin::metric_property tmam_metric_t::get_metric_property() const {
     }
 
     // override if category -> different unit
-    if (tmam_metric_category::bottleneck == category) {
+    if (tmam_metric_category::l1_bottleneck == category ||
+        tmam_metric_category::l2_bottleneck == category) {
         mp.unit = "TMAM category";
     } else if (tmam_metric_category::slots == category) {
         mp.unit = "#";
@@ -137,8 +145,10 @@ uint64_t tmam_metric_t::extract_tmam_field(const perf_tmam_data_t& tmam) const {
     switch(category) {
     case tmam_metric_category::slots:
         return tmam.slots;
-    case tmam_metric_category::bottleneck:
-        return static_cast<uint64_t>(get_bottleneck(tmam));
+    case tmam_metric_category::l1_bottleneck:
+        return static_cast<uint64_t>(get_l1_bottleneck(tmam));
+    case tmam_metric_category::l2_bottleneck:
+        return static_cast<uint64_t>(get_l2_bottleneck(tmam));
     case tmam_metric_category::l1_retiring:
         return tmam.retiring;
     case tmam_metric_category::l1_bad_speculation:
@@ -168,7 +178,7 @@ uint64_t tmam_metric_t::extract_tmam_field(const perf_tmam_data_t& tmam) const {
     throw std::runtime_error("unkown tmam category encountered: " + std::to_string(static_cast<uint64_t>(category)));
 }
 
-tmam_metric_category tmam_metric_t::get_bottleneck(const perf_tmam_data_t& tmam) {
+tmam_metric_category tmam_metric_t::get_l2_bottleneck(const perf_tmam_data_t& tmam) {
     const std::vector<tmam_metric_category> lvl2_categories = {
         // ignore retiring, this is not a bottleneck!
         // (to be fair it can be when not using vector instructions etc., but it is typically not)
@@ -182,6 +192,29 @@ tmam_metric_category tmam_metric_t::get_bottleneck(const perf_tmam_data_t& tmam)
 
     uint64_t top_slots = 0;
     tmam_metric_category top_category = tmam_metric_category::l2_light_ops;
+
+    for (const auto category : lvl2_categories) {
+        uint64_t slots = tmam_metric_t(category).extract_tmam_field(tmam);
+        if (slots > top_slots) {
+            top_slots = slots;
+            top_category = category;
+        }
+    }
+
+    return top_category;
+}
+
+tmam_metric_category tmam_metric_t::get_l1_bottleneck(const perf_tmam_data_t& tmam) {
+    const std::vector<tmam_metric_category> lvl2_categories = {
+        // ignore retiring, this is not a bottleneck!
+        // (to be fair it can be when not using vector instructions etc., but it is typically not)
+        tmam_metric_category::l1_bad_speculation,
+        tmam_metric_category::l1_frontend_bound,
+        tmam_metric_category::l1_backend_bound,
+    };
+
+    uint64_t top_slots = 0;
+    tmam_metric_category top_category = tmam_metric_category::l1_retiring;
 
     for (const auto category : lvl2_categories) {
         uint64_t slots = tmam_metric_t(category).extract_tmam_field(tmam);
