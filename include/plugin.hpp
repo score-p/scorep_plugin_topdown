@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <chrono>
 #include <string>
+#include <mutex>
 
 extern "C" {
     #include <unistd.h>
@@ -18,6 +19,33 @@ extern "C" {
 
 #include <metric.hpp>
 #include <perf_util.hpp>
+
+/// measurement state of a single thread
+struct thread_state_t {
+    /// perf handle
+    perf_tmam_handle tmam_handle;
+
+    /// latest sample
+    perf_tmam_data_t sample_current;
+
+    /// sample collected before latest
+    perf_tmam_data_t sample_last;
+
+    /// time at which sample_current has been collected
+    std::chrono::steady_clock::time_point time_current;
+
+    /// total number of collected samples
+    uint64_t sample_cnt_total = 0;
+
+    /// track when last data point for a particular metric has been recorded (metric != tmam sample)
+    std::map<tmam_metric_t, std::chrono::steady_clock::time_point> last_metric_datapoint_timepoint_by_metric;
+
+    /// constructor
+    thread_state_t() : tmam_handle(false, 0, -1) {
+        // nop, exists to initialize tmam_handle
+    }
+};
+using thread_state_t = struct thread_state_t;
 
 class topdown_plugin :
     public scorep::plugin::base<topdown_plugin,
@@ -34,23 +62,14 @@ private:
         return gettid();
     }
 
-    /// handle to TMAM perf wrapper (per thread)
-    std::map<tid_t, perf_tmam_handle> tmam_handle_by_thread;
+    /// mutex to access thread_state_by_thread (used for initialization only)
+    std::mutex thread_state_by_thread_mutex;
+
+    /// thread-local state
+    std::map<tid_t, thread_state_t> thread_state_by_thread;
 
     /// minimum time between two measurements
     uint64_t delta_t_min_us = 500;
-
-    /// track when last measurement was taken
-    std::map<tid_t, std::chrono::steady_clock::time_point> sample_current_timepoint_by_thread;
-
-    /// track when last data point for a particular metric has been recorded (metric != tmam sample)
-    std::map<tid_t, std::map<tmam_metric_t, std::chrono::steady_clock::time_point>> last_metric_datapoint_timepoint_by_metric_by_thread;
-
-    /// most recent sample, stored to re-use same sample across multiple metrics
-    std::map<tid_t, perf_tmam_data_t> sample_current_by_thread;
-
-    /// last sample, stored to compute delta to sample_current_by_thread
-    std::map<tid_t, perf_tmam_data_t> sample_last_by_thread;
 
     /**
      * retrieve current sample for current thread if applicable
@@ -60,14 +79,16 @@ private:
      * @return if an actual update has been performed
      */
     void update_samples_this_thread() {
-        tid_t tid = get_current_tid();
+        const tid_t tid = get_current_tid();
+        thread_state_t& ts = thread_state_by_thread.at(tid);
+        
         // default: record new sample
         uint64_t passed_us = 1 + delta_t_min_us;
         auto now = std::chrono::steady_clock::now();
 
-        if (sample_current_timepoint_by_thread.contains(tid)) {
+        if (0 < ts.sample_cnt_total) {
             // check if enough time passed
-            passed_us = std::chrono::duration_cast<std::chrono::microseconds>(now - sample_current_timepoint_by_thread[tid]).count();
+            passed_us = std::chrono::duration_cast<std::chrono::microseconds>(now - ts.time_current).count();
         }
 
         if (passed_us < delta_t_min_us) {
@@ -76,11 +97,13 @@ private:
         }
 
         // enough time passed, record new sample
-        sample_current_timepoint_by_thread[tid] = now;
-        if (sample_current_by_thread.contains(tid)) {
-            sample_last_by_thread[tid] = sample_current_by_thread[tid];
+        // (require check if already in map, if yes acquire required mutex)
+        ts.time_current = now;
+        if (0 < ts.sample_cnt_total){
+            ts.sample_last = ts.sample_current;
         }
-        sample_current_by_thread[tid] = tmam_handle_by_thread[tid].read();
+        ts.sample_current = ts.tmam_handle.read();
+        ts.sample_cnt_total++;
     }
 
 public:
@@ -94,33 +117,38 @@ public:
         // record given metric for *current thread*
         // note that there is no specific procedure for an individual metric,
         // all metrics are recorded by the same object
-        // -> init tmam measurement if not done already
+        // -> init tmam measurement *only* if not done already
+
+        std::lock_guard lock(thread_state_by_thread_mutex);
+
         tid_t tid = get_current_tid();
-        if (!tmam_handle_by_thread.contains(tid)) {
+        if (!thread_state_by_thread.contains(tid)) {
             // use emplace because handler may not be moved
             // use piecewise emplace, b/c handler has no constructor
-            tmam_handle_by_thread.emplace(std::piecewise_construct,
-                                          std::forward_as_tuple(tid),
-                                          std::forward_as_tuple());
+            thread_state_by_thread.emplace(std::piecewise_construct,
+                                           std::forward_as_tuple(tid),
+                                           std::forward_as_tuple());
         }
     }
 
     template <class Proxy>
     bool get_optional_value(const tmam_metric_t& metric, Proxy& p) {
+        tid_t tid = get_current_tid();
+        thread_state_t& ts = thread_state_by_thread.at(tid);
+
         // 1. check if minimum since last sample (of this metric!!) passed
 
-        tid_t tid = get_current_tid();
-        // default: record new sample
+        // default: return data for metric
         uint64_t passed_us = 1 + delta_t_min_us;
 
-        if (last_metric_datapoint_timepoint_by_metric_by_thread[tid].contains(metric)) {
-            auto last_tp = last_metric_datapoint_timepoint_by_metric_by_thread[tid][metric];
+        if (ts.last_metric_datapoint_timepoint_by_metric.contains(metric)) {
+            auto last_tp = ts.last_metric_datapoint_timepoint_by_metric[metric];
             auto now = std::chrono::steady_clock::now();
             passed_us = std::chrono::duration_cast<std::chrono::microseconds>(now - last_tp).count();
         }
 
         if (passed_us < delta_t_min_us) {
-            // not enough time passed, try again later
+            // not enough time passed since last metric readout, try again later
             return false;
         }
 
@@ -128,11 +156,9 @@ public:
         // (will skip update if not enough time passed for)
         update_samples_this_thread();
 
-        // 3. report value (if all values ready)
-        if (sample_current_by_thread.contains(tid) && sample_last_by_thread.contains(tid)) {
-            auto current = sample_current_by_thread[tid];
-            auto last = sample_last_by_thread[tid];
-            auto delta = current - last;
+        // 3. report value (if at least 2 samples are ready to compute deltas)
+        if (ts.sample_cnt_total >= 2) {
+            auto delta = ts.sample_current - ts.sample_last;
 
             uint64_t value_raw = metric.extract_tmam_field(delta);
 
@@ -151,7 +177,7 @@ public:
             // when using this order, if the last metric recording is >= delta_t_min_us away,
             // the last readout of the perf handler will be too
             // (when assigning the other way around, this must not necessarily be true)
-            last_metric_datapoint_timepoint_by_metric_by_thread[tid][metric] = std::chrono::steady_clock::now();
+            ts.last_metric_datapoint_timepoint_by_metric[metric] = std::chrono::steady_clock::now();
             return true;
         }
 

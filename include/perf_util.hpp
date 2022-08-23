@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 extern "C" {
 #include <sys/types.h>
@@ -17,19 +18,25 @@ extern "C" {
  */
 struct perf_tmam_data_t {
     /// nr. of contained events, required for perf support
-    uint64_t nr;
-    uint64_t slots;
-    uint64_t retiring;
-    uint64_t bad_spec;
-    uint64_t fe_bound;
-    uint64_t be_bound;
-    uint64_t heavy_ops;
-    uint64_t br_mispredict;
-    uint64_t fetch_lat;
-    uint64_t mem_bound;
+    uint64_t nr = 0;
+    uint64_t slots = 0;
+    uint64_t retiring = 0;
+    uint64_t bad_spec = 0;
+    uint64_t fe_bound = 0;
+    uint64_t be_bound = 0;
+    uint64_t heavy_ops = 0;
+    uint64_t br_mispredict = 0;
+    uint64_t fetch_lat = 0;
+    uint64_t mem_bound = 0;
 
     /// print to stderr
     void dump() const;
+
+    /// generate csv (machine-readable) string
+    std::string csv() const;
+
+    /// get header for csv()
+    static std::string csv_header();
 
     /**
      * read TMAM data from perf
@@ -41,6 +48,9 @@ struct perf_tmam_data_t {
     static perf_tmam_data_t read_from_perf(int perf_leader_fd);
 };
 typedef struct perf_tmam_data_t perf_tmam_data_t;
+
+/// component-wise addition
+perf_tmam_data_t operator+(const perf_tmam_data_t& lhs, const perf_tmam_data_t& rhs);
 
 /// component-wise subtraction
 perf_tmam_data_t operator-(const perf_tmam_data_t& lhs, const perf_tmam_data_t& rhs);
@@ -69,11 +79,26 @@ public:
     int fd_mem_bound;
 
     /**
+     * internally use rdpmc, but emulate behavior of traditional perf
+     * must be const, as rdpmc initialization is different from perf with counters
+     */
+    const bool use_rdpmc;
+
+    /// store last tmam result for when using rdpmc
+    perf_tmam_data_t rdpmc_last_result;
+
+    /// pointer to memory region mapped to enable rdpmc
+    void* rdpmc_mmap_ptr;
+
+    /**
      * constructor
      *
      * opens & initializes TMAM perf events
+     * @param use_rdpmc uses RDPMC when enabled, otherwise plain perf
+     * @param pid thread to be monitored, current by default
+     * @param cpu cpu to be monitored, any by default
      */
-    perf_tmam_handle();
+    perf_tmam_handle(bool use_rdpmc = false, pid_t pid = 0, int cpu = -1);
 
     // delete move/copy constructors, which screws with RAII and file handle closing
     perf_tmam_handle (const perf_tmam_handle&) = delete;
@@ -87,10 +112,10 @@ public:
     virtual ~perf_tmam_handle();
 
     /// read TMAM results
-    perf_tmam_data_t read() const;
+    perf_tmam_data_t read();
 
     /// trigger perf readout, but discard results
-    void nullread() const;
+    void nullread();
 
     /// helper: retrieve perf event type for P-core PMU
     static unsigned int get_pmu_type();
