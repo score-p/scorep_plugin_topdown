@@ -140,7 +140,7 @@ unsigned int perf_tmam_handle::get_pmu_type() {
     std::ifstream typefile(fname);
 
     if (!typefile.is_open()) {
-        throw std::runtime_error("could not open " + fname);
+        throw std::system_error(errno, std::generic_category(), "could not open " + fname);
     }
 
     typefile >> type;
