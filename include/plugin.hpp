@@ -16,7 +16,6 @@ extern "C" {
 #define gettid() syscall(SYS_gettid)
 #endif
 
-
 #include <scorep/SCOREP_MetricTypes.h>
 #pragma GCC diagnostic push 
 #pragma GCC diagnostic ignored "-Wvolatile"
