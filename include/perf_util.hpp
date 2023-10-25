@@ -116,7 +116,4 @@ public:
 
     /// trigger perf readout, but discard results
     void nullread();
-
-    /// helper: retrieve perf event type for P-core PMU
-    static unsigned int get_pmu_type();
 };

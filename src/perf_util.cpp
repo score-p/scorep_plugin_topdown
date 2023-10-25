@@ -134,23 +134,6 @@ perf_tmam_data_t perf_tmam_data_t::read_from_perf(int perf_leader_fd) {
     return data;
 }
 
-unsigned int perf_tmam_handle::get_pmu_type() {
-    const std::string fname = "/sys/devices/cpu_core/type";
-    unsigned int type;
-    std::ifstream typefile(fname);
-
-    if (!typefile.is_open()) {
-        throw std::system_error(errno, std::generic_category(), "could not open " + fname);
-    }
-
-    typefile >> type;
-
-    if (0 == type) {
-        throw std::system_error(EINVAL, std::generic_category(), "perf PMU type must not be zero");
-    }
-
-    return type;
-}
 
 perf_tmam_handle::perf_tmam_handle(bool use_rdpmc, pid_t pid, int cpu) : use_rdpmc(use_rdpmc) {
     // phase 1: open leader
@@ -159,6 +142,7 @@ perf_tmam_handle::perf_tmam_handle(bool use_rdpmc, pid_t pid, int cpu) : use_rdp
     // Note that "config" is using hardcoded values throughout.
     // This is because a) the documentation notes these numbers,
     // so they are assumed to be stable and b) they are hardcoded in the kernel as well.
+    // https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/tools/perf/Documentation/topdown.txt
 
     // Also, the perf_event_attr struct is huged and designed to no be specified for many fields.
     // Therefore the pragma to supress the warnings.
@@ -166,7 +150,7 @@ perf_tmam_handle::perf_tmam_handle(bool use_rdpmc, pid_t pid, int cpu) : use_rdp
 #pragma GCC diagnostic push 
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
     struct perf_event_attr leader_perf_attr = {
-        .type = get_pmu_type(),
+        .type = PERF_TYPE_RAW,
         .size = sizeof(struct perf_event_attr),
         .config = 0x400,
         .read_format = PERF_FORMAT_GROUP,
@@ -186,7 +170,7 @@ perf_tmam_handle::perf_tmam_handle(bool use_rdpmc, pid_t pid, int cpu) : use_rdp
 #pragma GCC diagnostic push 
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
         struct perf_event_attr perf_attr = {
-            .type = get_pmu_type(),
+            .type = PERF_TYPE_RAW,
             .size = sizeof(struct perf_event_attr),
             .config = config,
             .read_format = PERF_FORMAT_GROUP,
