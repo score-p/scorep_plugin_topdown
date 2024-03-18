@@ -85,13 +85,5 @@ export OMP_NUM_THREADS=16
 export GOMP_CPU_AFFINITY=0-15
 ```
 
-## Troubleshooting
-Make sure the file `/sys/devices/cpu_core/type` is accesible, and its content is `4`.
-This is used to identify the presence of an Alder Lake P-Core.
-
-When running a large number of threads (my test: >500), you may encounter the error `could not open /sys/devices/cpu_core/type: Too many open files`.
-If this is the case, check if the limit for open file handles is high enough with `ulimit -n`.
-You can increase it with `ulimit -n NUMBER`.
-
 ## License
 This plugin is available under the [BSD-3-clause license](./LICENSE).
