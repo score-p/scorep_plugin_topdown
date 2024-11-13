@@ -6,6 +6,7 @@
 #include <chrono>
 #include <string>
 #include <mutex>
+#include <map>
 
 extern "C" {
     #include <unistd.h>
@@ -127,7 +128,7 @@ public:
         std::lock_guard lock(thread_state_by_thread_mutex);
 
         tid_t tid = get_current_tid();
-        if (!thread_state_by_thread.contains(tid)) {
+        if (thread_state_by_thread.find(tid) == thread_state_by_thread.end()) {
             // use emplace because handler may not be moved
             // use piecewise emplace, b/c handler has no constructor
             thread_state_by_thread.emplace(std::piecewise_construct,
@@ -145,8 +146,8 @@ public:
 
         // default: return data for metric
         uint64_t passed_us = 1 + delta_t_min_us;
-
-        if (ts.last_metric_datapoint_timepoint_by_metric.contains(metric)) {
+        if (ts.last_metric_datapoint_timepoint_by_metric.find(metric)
+                != ts.last_metric_datapoint_timepoint_by_metric.end()) {
             auto last_tp = ts.last_metric_datapoint_timepoint_by_metric[metric];
             auto now = std::chrono::steady_clock::now();
             passed_us = std::chrono::duration_cast<std::chrono::microseconds>(now - last_tp).count();
